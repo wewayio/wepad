@@ -1,4 +1,4 @@
-# Launchpool Smart Contracts
+# Wepad Smart Contracts
 
 ## Smart contracts
 
