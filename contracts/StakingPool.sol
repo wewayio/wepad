@@ -331,7 +331,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
         emit NewStartAndEndBlocks(_startTimestamp, _bonusEndTimestamp);
     }
 
-    uint stakedTokenSupply;
+    uint public stakedTokenSupply;
 
     /*
      * @notice View function to see pending reward on frontend.
