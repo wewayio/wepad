@@ -93,7 +93,7 @@ contract Tokensale is Ownable, Pausable {
     function getAvailableParticipateAmount(address user) public view returns (uint) {
         
         Contribution memory contrib = contributions[user];
-        return getAllocation(user) * (bonusRound ? 2 : 1) - contrib.amount;
+        return getAllocation(user) - contrib.amount + bonusRoundAllocationInStables;
     }
 
     // team should deposit tokens for sale
@@ -110,15 +110,17 @@ contract Tokensale is Ownable, Pausable {
 
     // is bonus round started
     bool public bonusRound;
+    uint public bonusRoundAllocationInStables;
 
     // start bonus round to sell rest of the tokens
-    function startBonusRound() public {
+    function startBonusRound(uint _bonusRoundAllocationInStables) public onlyOwner {
 
         require(endTime < block.timestamp);
         require(totalTokensSold < tokensForSale, "COND2");
         require(vestingStart == 0, "COND3");
         require(bonusRound == false, "COND4");
 
+        bonusRoundAllocationInStables = _bonusRoundAllocationInStables;
         bonusRound = true;
     }
 
