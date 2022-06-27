@@ -216,6 +216,33 @@ contract StakingPool is Ownable, ReentrancyGuard {
     }
 
     /*
+            Let user stake his rewards  
+    */
+    function stakeRewards() public {
+
+        UserInfo storage user = userInfo[msg.sender];
+        
+        //require(user.stakeTime + withdrawStakingTime <= block.timestamp, "TIME");
+        
+        _updatePool();
+
+        uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+        
+        require(pending > 0, "REWARD"); 
+
+        if (user.amount == 0) {
+            allStakers.add(msg.sender);
+        }
+
+        user.amount = user.amount.add(pending);
+        stakedTokenSupply = stakedTokenSupply.add(pending);
+
+
+        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+
+    }
+
+    /*
      * @notice Withdraw staked tokens without caring about rewards rewards
      * @dev Needs to be for emergency.
      */
