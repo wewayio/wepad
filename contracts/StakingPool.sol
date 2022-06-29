@@ -5,7 +5,6 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
@@ -15,7 +14,6 @@ abstract contract IBEP20 is IERC20 {
 }
 
 contract StakingPool is Ownable, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for IBEP20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -95,7 +93,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
     /*
      * @notice Initialize the contract
      * @param _stakedToken: staked token address
-     * @param _rewardToken: reward token address
+     * @param _rewardToken: equal to _stakedToken
      * @param _rewardPerSecond: reward per block (in rewardToken)
      * @param _startTimestamp: start block
      * @param _bonusEndTimestamp: end block
@@ -104,7 +102,6 @@ contract StakingPool is Ownable, ReentrancyGuard {
      */
     constructor(
         IBEP20 _stakedToken,
-        IBEP20 _rewardToken,
         uint256 _rewardPerSecond,
         uint256 _startTimestamp,
         uint256 _bonusEndTimestamp,
@@ -112,7 +109,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
     )  {
 
         stakedToken = _stakedToken;
-        rewardToken = _rewardToken;
+        rewardToken = _stakedToken;
         rewardPerSecond = _rewardPerSecond;
         startTimestamp = _startTimestamp;
         bonusEndTimestamp = _bonusEndTimestamp;
@@ -125,7 +122,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
         uint256 decimalsRewardToken = uint256(rewardToken.decimals());
         require(decimalsRewardToken < 30, "Must be inferior to 30");
 
-        PRECISION_FACTOR = uint256(10**(uint256(30).sub(decimalsRewardToken)));
+        PRECISION_FACTOR = uint256(10**( uint256(30) - decimalsRewardToken ));
 
         // Set the lastRewardTimestamp as the startTimestamp
         lastRewardTimestamp = startTimestamp;
@@ -141,7 +138,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[msg.sender];
 
         if (hasUserLimit) {
-            require(_amount.add(user.amount) <= poolLimitPerUser, "User amount above limit");
+            require(_amount + user.amount <= poolLimitPerUser, "User amount above limit");
         }
 
         _updatePool();
@@ -152,30 +149,41 @@ contract StakingPool is Ownable, ReentrancyGuard {
         }
 
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            uint256 pending = ((user.amount * accTokenPerShare) / PRECISION_FACTOR) - user.rewardDebt;
             if (pending > 0) {
                 rewardToken.safeTransfer(address(msg.sender), pending);
             }
         }
 
         if (_amount > 0) {
-            user.amount = user.amount.add(_amount);
-            stakedTokenSupply = stakedTokenSupply.add(_amount);
+            user.amount = user.amount + _amount;
+            stakedTokenSupply = stakedTokenSupply + _amount;
 
             stakedToken.safeTransferFrom(address(msg.sender), address(this), _amount);
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = (user.amount * accTokenPerShare) / PRECISION_FACTOR;
         user.stakeTime = block.timestamp;
 
         emit Deposit(msg.sender, _amount);
     }
 
-    uint withdrawStakingTime = 604800; // week in seconds
+    uint constant withdrawStakingTime = 604800; // week in seconds
 
-    
+    // calculate reward and check ability to withdraw
+    function getWithdrawableRewardAmount(UserInfo memory user) private view returns (uint) {
+        uint256 pending = ((user.amount * accTokenPerShare) / PRECISION_FACTOR) - user.rewardDebt;
 
+        uint tokenBalance  = IERC20(rewardToken).balanceOf(address(this));
+        uint rest = tokenBalance - tokenBalance;
+        require(rest >= 0, "BALANCE");
 
+        // adjust amount in case when rewards are not deposited
+        pending = rest - pending > 0 ? pending : rest;
+
+        return pending;
+
+    }
 
     /*
      * @notice Withdraw staked tokens and collect reward tokens
@@ -188,15 +196,12 @@ contract StakingPool is Ownable, ReentrancyGuard {
         
         _updatePool();
 
-        uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+        uint256 pending = getWithdrawableRewardAmount(user);
 
         if (_amount > 0) {
-            user.amount = user.amount.sub(_amount);
+            user.amount = user.amount - _amount;
             
-            stakedTokenSupply = stakedTokenSupply.sub(_amount);
-            
-            //stakedToken.safeTransfer(address(msg.sender), _amount);
-            
+            stakedTokenSupply -=  _amount;
             
             stakedToken.safeTransfer(address(msg.sender), _amount);
             
@@ -210,13 +215,13 @@ contract StakingPool is Ownable, ReentrancyGuard {
             rewardToken.safeTransfer(address(msg.sender), pending);
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = (user.amount * accTokenPerShare) / PRECISION_FACTOR;
 
         emit WithdrawRequest(msg.sender, _amount);
     }
 
     /*
-            Let user stake his rewards  
+            Let user staker rewards  
     */
     function stakeRewards() public {
 
@@ -226,19 +231,19 @@ contract StakingPool is Ownable, ReentrancyGuard {
         
         _updatePool();
 
-        uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
-        
+        uint256 pending = getWithdrawableRewardAmount(user);
+
         require(pending > 0, "REWARD"); 
 
         if (user.amount == 0) {
             allStakers.add(msg.sender);
         }
 
-        user.amount = user.amount.add(pending);
-        stakedTokenSupply = stakedTokenSupply.add(pending);
+        user.amount += pending;
+        stakedTokenSupply += pending;
 
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = (user.amount * accTokenPerShare) / PRECISION_FACTOR;
 
     }
 
@@ -370,12 +375,12 @@ contract StakingPool is Ownable, ReentrancyGuard {
         //uint256 stakedTokenSupply = stakedToken.balanceOf(address(this));
         if (block.timestamp > lastRewardTimestamp && stakedTokenSupply != 0) {
             uint256 multiplier = _getMultiplier(lastRewardTimestamp, block.timestamp);
-            uint256 reward = multiplier.mul(rewardPerSecond);
+            uint256 reward = multiplier * rewardPerSecond;
             uint256 adjustedTokenPerShare =
-            accTokenPerShare.add(reward.mul(PRECISION_FACTOR).div(stakedTokenSupply));
-            return user.amount.mul(adjustedTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            accTokenPerShare + (reward * PRECISION_FACTOR / stakedTokenSupply);
+            return ((user.amount * adjustedTokenPerShare) / PRECISION_FACTOR) - (user.rewardDebt);
         } else {
-            return user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            return ((user.amount * accTokenPerShare) / PRECISION_FACTOR) - (user.rewardDebt);
         }
     }
 
@@ -393,8 +398,8 @@ contract StakingPool is Ownable, ReentrancyGuard {
         }
 
         uint256 multiplier = _getMultiplier(lastRewardTimestamp, block.timestamp);
-        uint256 reward = multiplier.mul(rewardPerSecond);
-        accTokenPerShare = accTokenPerShare.add(reward.mul(PRECISION_FACTOR).div(stakedTokenSupply));
+        uint256 reward = multiplier * rewardPerSecond;
+        accTokenPerShare = accTokenPerShare + (reward * PRECISION_FACTOR  / stakedTokenSupply);
         lastRewardTimestamp = block.timestamp;
     }
 
@@ -405,11 +410,11 @@ contract StakingPool is Ownable, ReentrancyGuard {
      */
     function _getMultiplier(uint256 _from, uint256 _to) internal view returns (uint256) {
         if (_to <= bonusEndTimestamp) {
-            return _to.sub(_from);
+            return _to - _from;
         } else if (_from >= bonusEndTimestamp) {
             return 0;
         } else {
-            return bonusEndTimestamp.sub(_from);
+            return bonusEndTimestamp -_from;
         }
     }
 }
