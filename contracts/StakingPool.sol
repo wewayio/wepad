@@ -175,8 +175,10 @@ contract StakingPool is Ownable, ReentrancyGuard {
         uint256 pending = ((user.amount * accTokenPerShare) / PRECISION_FACTOR) - user.rewardDebt;
 
         uint tokenBalance  = IERC20(rewardToken).balanceOf(address(this));
-        uint rest = tokenBalance - tokenBalance;
-        require(rest >= 0, "BALANCE");
+        uint rest = tokenBalance - stakedTokenSupply;
+        // as far rest can never been negative (<) is not necessary but logically wise it should be explicetelly here
+        if (rest <= 0)
+            return 0;
 
         // adjust amount in case when rewards are not deposited
         pending = rest - pending > 0 ? pending : rest;
