@@ -187,6 +187,11 @@ contract StakingPool is Ownable, ReentrancyGuard {
 
     }
 
+    // calculate the APR for the front-end in percent (for the whole period)
+    function getProfitabilityInPercent() public view returns (uint) {
+        return  (rewardPerSecond * (startTimestamp - bonusEndTimestamp) ) * 100 / stakedTokenSupply;
+    }
+
     /*
      * @notice Withdraw staked tokens and collect reward tokens
      * @param _amount: amount to withdraw (in rewardToken)
