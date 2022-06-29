@@ -60,9 +60,9 @@ contract StakingPool is Ownable, ReentrancyGuard {
         uint256 stakeTime;
     }
 
-    event AdminTokenRecovery(address tokenRecovered, uint256 amount);
+    //event AdminTokenRecovery(address tokenRecovered, uint256 amount);
     event Deposit(address indexed user, uint256 amount);
-    event EmergencyWithdraw(address indexed user, uint256 amount);
+    //event EmergencyWithdraw(address indexed user, uint256 amount);
     event NewStartAndEndBlocks(uint256 startTimestamp, uint256 endBlock);
     event NewrewardPerSecond(uint256 rewardPerSecond);
     event NewPoolLimit(uint256 poolLimitPerUser);
@@ -110,6 +110,8 @@ contract StakingPool is Ownable, ReentrancyGuard {
 
         stakedToken = _stakedToken;
         rewardToken = _stakedToken;
+        // TO protect the user
+        require(_rewardPerSecond >= 0.001 ether, "CANNOT_BE_LESS");
         rewardPerSecond = _rewardPerSecond;
         startTimestamp = _startTimestamp;
         bonusEndTimestamp = _bonusEndTimestamp;
@@ -149,9 +151,10 @@ contract StakingPool is Ownable, ReentrancyGuard {
         }
 
         if (user.amount > 0) {
-            uint256 pending = ((user.amount * accTokenPerShare) / PRECISION_FACTOR) - user.rewardDebt;
+            uint256 pending = getWithdrawableRewardAmount(user);
             if (pending > 0) {
                 rewardToken.safeTransfer(address(msg.sender), pending);
+                user.rewardDebt += pending;
             }
         }
 
@@ -162,7 +165,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
             stakedToken.safeTransferFrom(address(msg.sender), address(this), _amount);
         }
 
-        user.rewardDebt = (user.amount * accTokenPerShare) / PRECISION_FACTOR;
+        
         user.stakeTime = block.timestamp;
 
         emit Deposit(msg.sender, _amount);
@@ -220,9 +223,10 @@ contract StakingPool is Ownable, ReentrancyGuard {
 
         if (pending > 0) {
             rewardToken.safeTransfer(address(msg.sender), pending);
+            user.rewardDebt += pending;
         }
 
-        user.rewardDebt = (user.amount * accTokenPerShare) / PRECISION_FACTOR;
+        
 
         emit WithdrawRequest(msg.sender, _amount);
     }
@@ -250,7 +254,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
         stakedTokenSupply += pending;
 
 
-        user.rewardDebt = (user.amount * accTokenPerShare) / PRECISION_FACTOR;
+        user.rewardDebt += pending;
 
     }
 
@@ -278,16 +282,14 @@ contract StakingPool is Ownable, ReentrancyGuard {
      * @notice Stop rewards
      * @dev Only callable by owner. Needs to be for emergency.
      */
-    function emergencyRewardWithdraw(uint256 _amount) external onlyOwner {
-        rewardToken.safeTransfer(address(msg.sender), _amount);
-    }
+    //function emergencyRewardWithdraw(uint256 _amount) external onlyOwner {
+    //    rewardToken.safeTransfer(address(msg.sender), _amount);
+    //}
 
     /**
      * @notice It allows the admin to recover wrong tokens sent to the contract
-     * @param _tokenAddress: the address of the token to withdraw
-     * @param _tokenAmount: the number of tokens to withdraw
      * @dev This function is only callable by admin.
-     */
+     
     function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount) external onlyOwner {
         require(_tokenAddress != address(stakedToken), "Cannot be staked token");
         require(_tokenAddress != address(rewardToken), "Cannot be reward token");
@@ -296,14 +298,15 @@ contract StakingPool is Ownable, ReentrancyGuard {
 
         emit AdminTokenRecovery(_tokenAddress, _tokenAmount);
     }
+    */
 
     /*
      * @notice Stop rewards
      * @dev Only callable by owner
      */
-    function stopReward() external onlyOwner {
-        bonusEndTimestamp = block.timestamp;
-    }
+    //function stopReward() external onlyOwner {
+    //    bonusEndTimestamp = block.timestamp;
+    //}
 
     /*
      * @notice Update pool limit per user
@@ -343,9 +346,10 @@ contract StakingPool is Ownable, ReentrancyGuard {
      * @dev Only callable by owner.
      * @param _rewardPerSecond: the reward per block
      */
-    function updaterewardPerSecond(uint256 _rewardPerSecond) external onlyOwner {
+    function updateRewardPerSecond(uint256 _rewardPerSecond) external onlyOwner {
         //require(block.timestamp < startTimestamp, "Pool has started");
-        
+        // TO protect the user
+        require(_rewardPerSecond >= 0.001 ether, "CANNOT_BE_LESS");
         rewardPerSecond = _rewardPerSecond;
         emit NewrewardPerSecond(_rewardPerSecond);
     }
@@ -353,9 +357,6 @@ contract StakingPool is Ownable, ReentrancyGuard {
     /**
      * @notice It allows the admin to update start and end blocks
      * @dev This function is only callable by owner.
-     * @param _startTimestamp: the new start block
-     * @param _bonusEndTimestamp: the new end block
-     */
     function updateStartAndEndBlocks(uint256 _startTimestamp, uint256 _bonusEndTimestamp) external onlyOwner {
         require(block.timestamp < startTimestamp, "Pool has started");
         require(_startTimestamp < _bonusEndTimestamp, "New startTimestamp must be lower than new endBlock");
@@ -368,7 +369,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
         lastRewardTimestamp = startTimestamp;
 
         emit NewStartAndEndBlocks(_startTimestamp, _bonusEndTimestamp);
-    }
+    }*/
 
     uint public stakedTokenSupply;
 
