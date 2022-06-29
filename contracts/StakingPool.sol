@@ -150,6 +150,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
 
         }
 
+        /*
         if (user.amount > 0) {
             uint256 pending = getWithdrawableRewardAmount(user);
             if (pending > 0) {
@@ -157,6 +158,7 @@ contract StakingPool is Ownable, ReentrancyGuard {
                 user.rewardDebt += pending;
             }
         }
+        */
 
         if (_amount > 0) {
             user.amount = user.amount + _amount;
