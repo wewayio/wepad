@@ -68,6 +68,8 @@ contract StakingPool is Ownable, ReentrancyGuard {
     event NewPoolLimit(uint256 poolLimitPerUser);
     event RewardsStop(uint256 blockNumber);
     event WithdrawRequest(address indexed user, uint256 amount);
+    event StakeRewards(address user, uint amount);
+
 
     // get count of stakers
     function countOfStakers() public view returns (uint) {
@@ -257,6 +259,8 @@ contract StakingPool is Ownable, ReentrancyGuard {
 
 
         user.rewardDebt += pending;
+
+        emit StakeRewards(msg.sender, pending);
 
     }
 
