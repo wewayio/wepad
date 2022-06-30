@@ -7,6 +7,8 @@
 * TierSystemManual : Allocation Provider for the Tokensale Contract
 * Tokensale: Tokensale Contract with vesting period
 
-## Audit
+## Audits
 
-[Audit by Solidity.Finance](...)
+**Audits by Solidity.Finance**:
+
+[StakingPool audit report](https://solidity.finance/audits/WePadStaking/)
